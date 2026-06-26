@@ -93,32 +93,43 @@ log "   • 飞书开放平台 → https://open.feishu.cn"
 log "   • 阿里云百炼   → https://dashscope.aliyun.com"
 log ""
 
+# 确保能从键盘读取输入（即使脚本是通过 curl | bash 管道运行的）
+if [ -e /dev/tty ]; then
+    exec 3</dev/tty
+else
+    log "${RED}✗ 检测不到键盘输入通道${NC}"
+    log "  请先把脚本下载到本地再运行："
+    log "  ${CYAN}curl -fsSL https://raw.githubusercontent.com/laoxingai1413/laoxing-ai-deploy/main/install.sh -o install.sh${NC}"
+    log "  ${CYAN}bash install.sh${NC}"
+    exit 1
+fi
+
 # 飞书App ID
-read -p "① 飞书 App ID (cli_开头): " FEISHU_APP_ID
+read -u 3 -p "① 飞书 App ID (cli_开头): " FEISHU_APP_ID
 while [[ ! "$FEISHU_APP_ID" == cli_* ]]; do
     log "${RED}   格式不对，必须以 cli_ 开头${NC}"
-    read -p "① 飞书 App ID (cli_开头): " FEISHU_APP_ID
+    read -u 3 -p "① 飞书 App ID (cli_开头): " FEISHU_APP_ID
 done
 
 # 飞书App Secret
-read -s -p "② 飞书 App Secret: " FEISHU_APP_SECRET
+read -u 3 -s -p "② 飞书 App Secret: " FEISHU_APP_SECRET
 echo ""
 while [ -z "$FEISHU_APP_SECRET" ]; do
     log "${RED}   不能为空${NC}"
-    read -s -p "② 飞书 App Secret: " FEISHU_APP_SECRET
+    read -u 3 -s -p "② 飞书 App Secret: " FEISHU_APP_SECRET
     echo ""
 done
 
 # 网关Token
-read -p "③ 网关Token (自定义密码，直接回车用默认值 LaoxingAI2026): " GATEWAY_TOKEN
+read -u 3 -p "③ 网关Token (自定义密码，直接回车用默认值 LaoxingAI2026): " GATEWAY_TOKEN
 GATEWAY_TOKEN=${GATEWAY_TOKEN:-"LaoxingAI2026"}
 
 # DashScope API Key
-read -s -p "④ 阿里云DashScope API Key (sk-开头): " DASHSCOPE_KEY
+read -u 3 -s -p "④ 阿里云DashScope API Key (sk-开头): " DASHSCOPE_KEY
 echo ""
 while [[ ! "$DASHSCOPE_KEY" == sk-* ]]; do
     log "${RED}   格式不对，必须以 sk- 开头${NC}"
-    read -s -p "④ 阿里云DashScope API Key (sk-开头): " DASHSCOPE_KEY
+    read -u 3 -s -p "④ 阿里云DashScope API Key (sk-开头): " DASHSCOPE_KEY
     echo ""
 done
 
@@ -226,22 +237,39 @@ log "${GREEN}✓ openclaw.json 生成完成${NC}"
 log ""
 
 # ========== 第五步：启动服务 ==========
-log "${BLUE}[5/6] 启动服务（首次约3-5分钟）...${NC}"
+log "${BLUE}[5/6] 启动服务（首次需下载镜像，约3-8分钟，请耐心等待）...${NC}"
 
 cd ${INSTALL_DIR}
-docker compose up -d >> $LOG_FILE 2>&1
+if ! docker compose up -d >> $LOG_FILE 2>&1; then
+    log "${RED}✗ 服务启动失败！常见原因：${NC}"
+    log "   • 服务器无法访问外网（拉取镜像失败）"
+    log "   • 端口 18789 / 18790 / 5678 被占用"
+    log "   • 磁盘空间不足"
+    log "   查看详细错误：${YELLOW}cat $LOG_FILE${NC}"
+    log "   或运行：${YELLOW}cd ${INSTALL_DIR} && docker compose up${NC}（不加 -d 看实时报错）"
+    log "   解决不了请加微信：${GREEN}13317381413${NC}"
+    exit 1
+fi
 
-log "${YELLOW}⏳ 等待服务启动...${NC}"
-for i in {1..12}; do
+log "${YELLOW}⏳ 等待网关健康检查通过（最多等 5 分钟）...${NC}"
+GATEWAY_OK=0
+for i in {1..60}; do
     sleep 5
     STATUS=$(docker inspect --format='{{.State.Health.Status}}' openclaw-gateway 2>/dev/null || echo "starting")
-    echo -ne "   检查中 ${i}/12 (${STATUS})\r"
+    echo -ne "   检查中 ${i}/60 (${STATUS})            \r"
     if [ "$STATUS" = "healthy" ]; then
         echo ""
         log "${GREEN}✓ OpenClaw网关启动成功！${NC}"
+        GATEWAY_OK=1
         break
     fi
 done
+if [ "$GATEWAY_OK" -ne 1 ]; then
+    echo ""
+    log "${YELLOW}⚠ 网关暂未就绪（可能仍在下载镜像或启动中）${NC}"
+    log "   稍后用这条命令查看状态：${YELLOW}cd ${INSTALL_DIR} && docker compose ps${NC}"
+    log "   查看网关日志：${YELLOW}docker logs openclaw-gateway --tail 50${NC}"
+fi
 log ""
 
 # ========== 第六步：安装核心技能 ==========

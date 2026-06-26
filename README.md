@@ -18,39 +18,125 @@
 
 ---
 
-## 🚀 一键安装
+## 🧭 完全没基础？先看这张图
 
-SSH连接你的服务器，执行一条命令：
+整套系统**不是装在你手机或电脑上**，而是装在一台**云服务器**上，你通过**飞书**跟它对话：
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/laoxingai1413/laoxing-ai-deploy/main/install.sh | bash
+```
+你（手机/电脑上的飞书）
+        ↓ 发消息
+   云服务器（你买的那台 Linux）
+   ├─ OpenClaw  ← AI 大脑，负责理解和回复
+   └─ n8n       ← 自动化工作流
 ```
 
-按提示填写4个配置，等待5分钟自动完成。
+所以你要先有 ① 一台云服务器，② 一个飞书应用，③ 一个阿里云大模型 Key。下面一步步教。
 
 ---
 
-## 📋 安装前准备
+## 📋 第一步：准备 3 样东西
 
-### 服务器要求
-- Linux系统（Ubuntu 20.04+ 推荐）
-- 最低：2核 4G内存 50G硬盘
-- 需要能访问外网
+### ① 一台云服务器
+- 系统：Linux，**推荐 Ubuntu 22.04**
+- 配置：最低 **2核 / 4G内存 / 50G硬盘**
+- 要求：**能访问外网**（用于下载镜像）
+- 哪里买：阿里云、腾讯云、华为云均可，搜索"轻量应用服务器"，按月几十块起。
+- 买的时候记下：**服务器公网 IP**、**root 密码**。
 
-### 需要准备4个信息
+> 💡 小白提示：购买时系统镜像选 **Ubuntu 22.04**；安全组/防火墙先放行 22 端口（SSH）。
 
-| 信息 | 获取方式 |
-|------|---------|
-| 飞书 App ID | https://open.feishu.cn → 创建企业自建应用 |
-| 飞书 App Secret | 同上 |
-| 网关Token | 自定义密码，如 `MyAI2026` |
-| 阿里云DashScope Key | https://dashscope.aliyun.com → API密钥管理 |
+### ② 飞书应用（拿到 App ID 和 App Secret）
+见下面 [第四步：配置飞书](#-第四步配置飞书最容易出错-仔细照做)。
 
-### 飞书应用配置要点
-1. 创建企业自建应用
-2. 开通权限：`im:message`、`im:message:send_as_bot`、`cardkit:card:write`
-3. 事件订阅 → 选择**长连接**模式
-4. 发布应用
+### ③ 阿里云百炼 DashScope API Key
+1. 打开 https://dashscope.aliyun.com → 登录
+2. 进入「API-KEY 管理」→ 创建新 Key
+3. 复制以 **`sk-`** 开头的那串，存好。
+
+---
+
+## 🔌 第二步：连接到你的服务器（SSH）
+
+在你自己的电脑上打开终端：
+- **Windows**：用自带的「PowerShell」或下载 [MobaXterm](https://mobaxterm.mobatek.net/) / [Termius](https://termius.com/)
+- **Mac**：打开「终端 Terminal」
+
+输入（把 IP 换成你服务器的公网 IP）：
+
+```bash
+ssh root@你的服务器IP
+```
+
+第一次会问 `yes/no`，输入 `yes` 回车，再输入 root 密码（**输密码时屏幕不显示是正常的**）。看到命令行变成服务器的，就连上了。
+
+---
+
+## 🚀 第三步：一键安装
+
+连上服务器后，复制粘贴这条命令，回车：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/laoxingai1413/laoxing-ai-deploy/main/install.sh -o install.sh && bash install.sh
+```
+
+> ✅ 推荐用上面这种「先下载再运行」的写法，输入配置最稳。
+> （脚本也兼容 `curl ... | bash` 的老写法，但个别系统可能读不到键盘输入。）
+
+脚本会**自动**装好 Docker，然后**问你 4 个配置**，照着填即可：
+
+| 顺序 | 填什么 | 从哪来 |
+|------|--------|--------|
+| ① | 飞书 App ID（`cli_` 开头） | 第四步拿到 |
+| ② | 飞书 App Secret | 第四步拿到 |
+| ③ | 网关 Token | 自己设一个密码，如 `MyAI2026`，回车也可用默认 |
+| ④ | 阿里云 DashScope Key（`sk-` 开头） | 第一步③拿到 |
+
+填完等 3-8 分钟（首次要下载镜像，请耐心），看到 **🎉 安装完成** 就成了。
+
+---
+
+## 📱 第四步：配置飞书（最容易出错，仔细照做）
+
+> 飞书配错，AI 就不会回复。请逐条对照。
+
+### 1. 创建应用，拿到 App ID / Secret
+1. 打开 https://open.feishu.cn → 「开发者后台」
+2. 「创建企业自建应用」→ 填名字、图标 → 创建
+3. 在「凭证与基础信息」页，复制 **App ID** 和 **App Secret**（安装时第①②项要用）
+
+### 2. 开通机器人能力
+- 左侧「添加应用能力」→ 启用 **机器人**
+
+### 3. 开通权限（API 权限）
+在「权限管理」里搜索并开通以下权限：
+- `im:message`（读取消息）
+- `im:message:send_as_bot`（以机器人身份发消息）
+- `im:chat`（获取群信息）
+- `cardkit:card:write`（发送卡片，可选）
+
+### 4. 配置事件订阅（关键！）
+1. 左侧「事件与回调」→「事件订阅」
+2. 订阅方式选择 **「使用长连接接收事件」**（不要选 Webhook URL）
+3. 添加事件：**`接收消息 im.message.receive_v1`**
+
+### 5. 发布应用
+- 「版本管理与发布」→ 创建版本 → 提交发布（企业内可能需管理员审批）
+
+### 6. 把机器人拉进群 / 私聊
+- 在飞书里搜索你的应用名 → 发起单聊，或把它**拉进一个群**
+- 发一句 `你好，介绍一下你自己` 测试
+
+---
+
+## ✅ 验证是否成功
+
+去飞书给机器人发：
+
+```
+你好，介绍一下你自己
+```
+
+几秒内收到 AI 回复 = 全部成功 🎉
 
 ---
 
@@ -58,44 +144,62 @@ curl -fsSL https://raw.githubusercontent.com/laoxingai1413/laoxing-ai-deploy/mai
 
 ```
 laoxing-ai-deploy/
-├── install.sh            # 一键安装脚本 v4.0
+├── install.sh            # 一键安装脚本
 ├── docker-compose.yml    # Docker服务编排
-├── .env.example          # 环境变量模板
-└── README.md             # 说明文档
+├── env.example           # 环境变量模板（仅参考，脚本会自动生成 .env）
+└── README.md             # 本说明文档
 ```
 
 ---
 
-## 🔧 常用命令
+## 🔧 常用命令（在服务器上运行）
 
 ```bash
 # 查看服务状态
 cd /opt/laoxing-ai && docker compose ps
 
-# 查看日志
+# 查看网关日志（排查飞书不回复时最有用）
 docker logs openclaw-gateway --tail 50
 
 # 重启服务
 cd /opt/laoxing-ai && docker compose restart
 
-# 访问n8n（需先建SSH隧道）
+# 访问 n8n（需先在自己电脑上建 SSH 隧道）
 ssh -L 5678:127.0.0.1:5678 root@你的服务器IP
-# 浏览器打开 http://localhost:5678
+# 然后浏览器打开 http://localhost:5678
 ```
 
 ---
 
 ## ❓ 常见问题
 
-**飞书没有回复？**
-- 检查飞书权限是否全部开通
-- 确认事件订阅选择了"长连接"模式
-- 查看安装日志：`/tmp/ai_install_*.log`
+**Q：一键命令运行后没让我输入配置 / 直接结束了？**
+- 请改用「先下载再运行」的写法（见第三步），最稳。
 
-**安装中途失败？**
-- 确认服务器能访问外网
-- 确认使用root用户运行
-- 把日志文件发给微信客服
+**Q：飞书没有回复？**
+- 检查权限是否全部开通（第四步第3项）
+- 确认事件订阅选了 **长连接**，且添加了 `im.message.receive_v1`（第四步第4项）
+- 确认应用已**发布**、机器人已被拉进群或已单聊
+- 看网关日志：`docker logs openclaw-gateway --tail 50`
+
+**Q：安装中途失败 / 启动失败？**
+- 确认服务器能访问外网（`ping github.com` 试试）
+- 确认用的是 **root** 用户
+- 确认端口 18789 / 18790 / 5678 没被占用
+- 看实时报错：`cd /opt/laoxing-ai && docker compose up`
+- 安装日志在：`/tmp/ai_install_*.log`
+
+**Q：AI 回复报错 / 模型不可用？**
+- 检查阿里云 DashScope Key 是否有效、账户是否有余额
+- 配置文件在 `/opt/laoxing-ai/openclaw-config/openclaw.json`
+
+---
+
+## 🔒 安全提示
+
+- 默认 OpenClaw 控制台开放在公网端口 `18789`，且为方便使用降低了部分校验。
+- 建议：**给网关 Token 设一个强密码**（安装第③项），并在云服务器安全组里**只对自己的 IP 放行 18789**，不用时关闭该端口。
+- n8n 默认只绑定本机（`127.0.0.1`），需通过 SSH 隧道访问，相对安全。
 
 ---
 
